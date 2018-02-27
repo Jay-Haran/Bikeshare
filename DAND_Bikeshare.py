@@ -1,54 +1,25 @@
 import pandas as pd
 import calendar
 
-#Making a combined data frame in pandas.
-
 #Loading in the csv files
-chicago_data= pd.read_csv("chicago.csv")
-new_york_data=pd.read_csv("new_york_city.csv")
-washington_data=pd.read_csv("washington.csv")
+chicago= pd.read_csv("chicago.csv", parse_dates =["Start Time", "End Time"])
+newyork=pd.read_csv("new_york_city.csv", parse_dates =["Start Time", "End Time"])
+washington=pd.read_csv("washington.csv", parse_dates =["Start Time", "End Time"])
 
 #Test_data for faster testing purposes
 #n = 10000
-#new_york_data = pd.read_csv("new_york_city.csv",skiprows=lambda i: i % n != 0)
-#washington_data=pd.read_csv("washington.csv",skiprows=lambda i: i % n != 0)
-#chicago_data=pd.read_csv("chicago.csv", skiprows=lambda i: i % n != 0)
+#newyork= pd.read_csv("new_york_city.csv",skiprows=lambda i: i % n != 0,parse_dates =["Start Time", "End Time"])
+#washington=pd.read_csv("washington.csv",skiprows=lambda i: i % n != 0, parse_dates =["Start Time", "End Time"] )
+#chicago=pd.read_csv("chicago.csv", skiprows=lambda i: i % n != 0,parse_dates =["Start Time", "End Time"] )
 
-#Adding city name as a column so we can filter the data back after
-chicago_data['City']="Chicago"
-new_york_data['City']="New York"
-washington_data['City']="Washington"
+#Adding trips column to enable calculating summary statistics
+def counting_column(city):
+    city['Trips']=1
 
-#Adding the data frames together to enable us to add common columns for further analysis
-#This will aid with analysis and readability later
-city_set=[chicago_data, new_york_data, washington_data]
-city_data=pd.concat(city_set)
 
-#Converting months to time and adding distinct columns for analysis
-city_data['Start Time']=pd.to_datetime(city_data["Start Time"])
-city_data['End Time']=pd.to_datetime(city_data["End Time"])
-
-city_data['Date']=city_data["Start Time"].dt.date
-city_data['Month']=city_data["Start Time"].dt.month
-city_data['Month'] = city_data['Month'].apply(lambda x: calendar.month_name[x])
-city_data['Day']=city_data["Start Time"].dt.weekday_name
-city_data['Hour']=city_data["Start Time"].dt.hour
-
-#Removing seconds from time for readability
-city_data['Start Time']=city_data["Start Time"].map(lambda t: t.strftime('%H:%M'))
-city_data['End Time']=city_data["End Time"].map(lambda t: t.strftime('%H:%M'))
-
-#Adding journey and total trips column to enable better analysis
-city_data["Journey"]=city_data["Start Station"] + " to " + city_data["End Station"]
-city_data["Total Trips"]=1
-
-#Filtering back down to cities
-#Total trips column was added to so program can output tables which give the user more information
-chicago=city_data.loc[city_data['City'] == "Chicago"].copy()
-newyork=city_data.loc[city_data['City'] == "New York"].copy()
-washington=city_data.loc[city_data['City'] == "Washington"].copy()
-
-#Following functions are to gather user input
+counting_column(newyork)
+counting_column(washington)
+counting_column(chicago)
 
 def get_city():
     '''Asks the user for a city and returns a filtered data frame for future functions.
@@ -189,16 +160,17 @@ def time_classifier(city, time_period):
     days = ["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"]
 
     # Filter data frame to only include data from specified time period
-    if time_period in months:
-        # Capitalise first letter of time period since that is how it is represented in month column
-        Month_filter = time_period.capitalize()
 
-        frame = city.loc[city['Month'] == Month_filter].copy()
+    if time_period in months:
+
+        converter={"january": 1, "february": 2, "march": 3, "april": 4, "may": 5, "june":6}
+
+        frame=city.loc[city['Start Time'].dt.month == converter[time_period]]
+
 
     elif time_period in days:
-        Day_filter = time_period.capitalize()
 
-        frame = city.loc[city['Day'] == Day_filter].copy()
+        frame = city.loc[city['Start Time'].dt.weekday_name == time_period.capitalize]
 
     else:
         frame=city
@@ -212,22 +184,17 @@ def popular_month(frame):
     Args:
         1. frame: Data frame consisting of data for city and time period specified by user
     Returns:
-        A summary of trips by month
+        Most and least popular month
     '''
 
-    frame_month_summary = frame.groupby("Month").sum()
-    frame_month_summary = frame_month_summary.reindex(["January", "February", "March", "April", "May", "June"])
+    print("\nLoading month statistics")
 
-    highest_month = frame_month_summary.idxmax(axis=0).loc["Total Trips"]
-    lowest_month = frame_month_summary.idxmin(axis=0).loc["Total Trips"]
+    highest_month=frame.groupby(frame['Start Time'].dt.strftime('%B'))['Trips'].sum().idxmax(axis=0)
+    highest_value=frame.groupby(frame['Start Time'].dt.strftime('%B'))['Trips'].sum().max()
 
-    highest_value = frame_month_summary["Total Trips"].max()
-    lowest_value = frame_month_summary["Total Trips"].min()
+    lowest_month = chicago.groupby(chicago['Start Time'].dt.strftime('%B'))['Trips'].sum().idxmin(axis=0)
+    lowest_value = chicago.groupby(chicago['Start Time'].dt.strftime('%B'))['Trips'].sum().min()
 
-    # Creating a column with trips separated by commas for thousands for readability
-    frame_month_summary["Trips"] = frame_month_summary['Total Trips'].map('{:,.0f}'.format)
-
-    print(frame_month_summary[["Trips"]])
     print("\nMost popular month: {} ( {:,} trips)".format(highest_month, highest_value))
     print("Least popular month: {}  ({:,} trips)".format(lowest_month, lowest_value))
 
@@ -238,40 +205,32 @@ def popular_day(frame, time_period):
         1. frame: Data frame consisting of data for city and time period specified by user
         2. time_period: time period specified by user
     Returns:
-        A summary of trips by day
+        Most and least popular day for period specified by user
     '''
-    #make the set months to enable us to write a simple if statement
-    months = ["january", "february", "march", "april", "may", "june"]
 
-    # Filter data frame by assigning "frame" to only include data from specified month.
-    #if time_period in months:
+    print("\nLoading day statistics")
 
-    frame_day_summary = frame.groupby("Day").sum()
-    frame_day_summary = frame_day_summary.reindex(
-        ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"])
+    highest_day = frame.groupby(frame['Start Time'].dt.strftime('%A'))['Trips'].sum().idxmax(axis=0)
+    highest_value = frame.groupby(frame['Start Time'].dt.strftime('%A'))['Trips'].sum().max()
 
-    highest_day = frame_day_summary.idxmax(axis=0).loc["Total Trips"]
-    lowest_day = frame_day_summary.idxmin(axis=0).loc["Total Trips"]
-
-    highest_value = frame_day_summary["Total Trips"].max()
-    lowest_value = frame_day_summary["Total Trips"].min()
-
-    # Creating a column with trips separated by commas for thousands for readability
-    frame_day_summary["Trips"] = frame_day_summary['Total Trips'].map('{:,.0f}'.format)
+    lowest_day = frame.groupby(frame['Start Time'].dt.strftime('%A'))['Trips'].sum().idxmin(axis=0)
+    lowest_value = frame.groupby(frame['Start Time'].dt.strftime('%A'))['Trips'].sum().min()
 
     # Separating case where user specifies month with period where user does not specify month so we can give the user a
     # clearer description.
+
+    # make the set months to enable us to write a simple if statement
+    months = ["january", "february", "march", "april", "may", "june"]
+
     if time_period == "none":
-        print(frame_day_summary[["Trips"]])
         print("\nMost popular day: {} ({:,} trips)".format(highest_day,highest_value))
         print("Least popular day: {} ({:,} trips)".format(lowest_day,lowest_value))
 
-    if time_period in months:
+    elif time_period in months:
         # Capitalising for printing in the string
         print_period = time_period.title()
 
-        print(frame_day_summary[["Trips"]])
-        print("\nMost popular day for {} :{} ({:,} trips)".format(print_period, highest_day,highest_value))
+        print("\nMost popular day for {} : {} ({:,} trips)".format(print_period, highest_day,highest_value))
         print("Least popular day for {}: {} ({:,} trips)".format(print_period,lowest_day,lowest_value))
 
 def popular_hour(frame, time_period):
@@ -281,59 +240,30 @@ def popular_hour(frame, time_period):
         2. time_period: time period specified by user
 
     Returns:
-        Most and least popular hour with the option for the user to request a full summary of trips by hour
+        Most and least popular hour with number of trips
     '''
+    print("\nLoading hour statistics")
+
+    highest_hour = frame.groupby(frame['Start Time'].dt.strftime('%H'))['Trips'].sum().idxmax(axis=0)
+    highest_value = frame.groupby(frame['Start Time'].dt.strftime('%H'))['Trips'].sum().max()
+
+    lowest_hour = frame.groupby(frame['Start Time'].dt.strftime('%H'))['Trips'].sum().idxmin(axis=0)
+    lowest_value = frame.groupby(frame['Start Time'].dt.strftime('%H'))['Trips'].sum().min()
+
     months = ["january", "february", "march", "april", "may", "june"]
     days = ["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"]
-
-    frame_hour_summary = frame.groupby("Hour").sum()
-
-    # Renaming index/hours in am/pm format. I chose to write it and not implement a function for readability
-    frame_hour_summary.rename(
-        {0: "12am", 1: "1am", 2: "2am", 3: "3am", 4: "4am", 5: "5am", 6: "6am", 7: "7am", 8: "8am", 9: "9am",
-         10: "10am",
-         11: "11am", 12: "12pm", 13: "1pm", 14: "2pm", 15: "3pm", 16: "4pm", 17: "5pm", 18: "6pm", 19: "7pm",
-         20: "8pm", 21: "9pm", 22: "10pm", 23: "11pm"}, inplace=True)
-
-    highest_hour = frame_hour_summary.idxmax(axis=0).loc["Total Trips"]
-    lowest_hour = frame_hour_summary.idxmin(axis=0).loc["Total Trips"]
-
-    highest_value = frame_hour_summary["Total Trips"].max()
-    lowest_value = frame_hour_summary["Total Trips"].min()
-
-    # Creating a column with trips separated by commas for thousands for readability
-    frame_hour_summary["Trips"] = frame_hour_summary['Total Trips'].map('{:,.0f}'.format)
 
     if time_period == "none":
 
         print("\nMost popular starting hour: {} ({:,} trips)".format(highest_hour,highest_value))
         print("Least popular starting hour: {} ({:,} trips)".format(lowest_hour,lowest_value))
-    if time_period in months + days:
+
+    elif time_period in months + days:
         # Capitalising for printing in the string
         print_period = time_period.title()
 
         print("\nMost popular starting hour for {}: {} ({:,} trips)".format(print_period,highest_hour,highest_value))
         print("Least popular starting hour for {}: {} ({:,} trips)".format(print_period,lowest_hour,lowest_value))
-
-    #Extra code if user wants detailed breakdown
-
-    detailed_time_breakdown= "initialised"
-
-    while detailed_time_breakdown not in ("yes", "no"):
-
-        detailed_time_breakdown=input("\nWould you like to see total trips for every hour of the day? Type 'yes' or 'no'.\n" )
-
-        detailed_time_breakdown.lower()
-        detailed_time_breakdown = detailed_time_breakdown.replace(" ", "")
-
-        if detailed_time_breakdown == "no":
-            break
-
-        if detailed_time_breakdown == "yes":
-            print(frame_hour_summary[["Trips"]])
-
-        else:
-            print("\nI am sorry I do not recognise that input")
             
 #Following functions return information about trips such as duration and geography of trips.
 
@@ -349,6 +279,7 @@ def trip_duration(frame):
 
     # Calculating total duration and getting it in the format hours,minutes and seconds.
 
+    print('\n Loading duration statistics')
     total_duration = frame["Trip Duration"].sum()
 
     total_duration_minutes, total_duration_seconds = divmod(total_duration, 60)
@@ -361,11 +292,11 @@ def trip_duration(frame):
     average_duration_minutes, average_duration_seconds = divmod(average_duration, 60)
     average_duration_hours, average_duration_minutes = divmod(average_duration_minutes, 60)
 
-    print("\nTotal duration:  {:.0f} hours {:.0f} minutes and {:.0f} seconds".format(total_duration_hours,
+    print("\nTotal duration:  {:,} hours {:.0f} minutes and {:.0f} seconds".format(total_duration_hours,
                                                                                         total_duration_minutes,
                                                                                         total_duration_seconds))
 
-    print("Average duration: {:.0f} hours {:.0f} minutes and {:.0f} seconds".format(average_duration_hours,
+    print("Average duration: {:,} hours {:.0f} minutes and {:.0f} seconds".format(average_duration_hours,
                                                                                           average_duration_minutes,
                                                                                           average_duration_seconds))
 
@@ -377,19 +308,22 @@ def popular_stations(frame):
     Returns:
         Most and least popular start station and most popular journey
     '''
+
+    print('\n Loading geographical statistics')
+
     most_popular_start = frame["Start Station"].max()
     least_popular_start = frame["Start Station"].min()
 
     most_popular_end = frame["End Station"].max()
     least_popular_end = frame["End Station"].min()
 
-    most_popular_journey = frame["Journey"].max()
+    most_popular_journey = frame.groupby(["Start Station", "End Station"])['Trips'].sum().idxmax()
 
     print("\nMost popular start station: {}".format(most_popular_start))
     print("Least popular start station: {}".format(least_popular_start))
     print("\nMost popular end station: {}".format(most_popular_end))
     print("Least popular end station: {}".format(least_popular_end))
-    print("\nMost popular journey: {}".format(most_popular_journey))
+    print("\nMost popular journey: {} to {}".format(most_popular_journey[0], most_popular_journey[1]))
 
 #Following functions return information about the user
 
@@ -402,8 +336,10 @@ def users(frame):
             Counts for each user type
     '''
 
+    print('\n Loading user statistics')
+
     user_summary = frame.groupby("User Type").sum()
-    user_summary["Trips"] = user_summary['Total Trips'].map('{:,.0f}'.format)
+    user_summary["Trips"] = user_summary['Trips'].map('{:,.0f}'.format)
     print("\n", user_summary[["Trips"]])
     
 def gender(frame):
@@ -415,8 +351,10 @@ def gender(frame):
             Counts for each gender
     '''
 
+    print('\n Loading gender statistics')
+
     gender_summary = frame.groupby("Gender").sum()
-    gender_summary["Trips"] = gender_summary['Total Trips'].map('{:,.0f}'.format)
+    gender_summary["Trips"] = gender_summary['Trips'].map('{:,.0f}'.format)
     print("\n", gender_summary[["Trips"]])
 
 def birth_years(frame):
@@ -426,10 +364,12 @@ def birth_years(frame):
         Returns:
             Earliest, latest and most popular birth year'''
 
+    print('\n Loading birth year statistics')
+
     #Find the birth year for the oldest and youngest user and also the most popular birth year
     oldest = frame["Birth Year"].min()
     youngest = frame["Birth Year"].max()
-    popular = int(frame.mode()["Birth Year"][0])
+    popular = int(frame["Birth Year"].mode()[0])
 
     print("\nEarliest Birth Year: {:.0f}".format(oldest))
     print("Most Recent Birth Year: {:.0f}".format(youngest))
@@ -446,7 +386,7 @@ def display_data(frame):
     continuing asking until they say stop.
     '''
 
-    summary_frame= frame[["City", "Start Station", "End Station","Date", "Start Time", "End Time", "User Type"]]
+    summary_frame= frame[["Start Station", "End Station","Start Time", "Trip Duration", "User Type"]]
 
     first_line=0
 
@@ -508,14 +448,18 @@ def statistics():
     # Filter by time period (month, day, none)
     time_period = get_time_period()
 
-    #Get the month the user wants to filter by if they choose month
+    #Find the specific time frame user wants to filter by
+    if time_period == "none":
+
+        time_period=time_period
+
     if time_period == "month":
 
         time_period=get_month()
 
     if time_period== "day":
 
-        time_period = get_day()
+        time_period=get_day()
 
     #Time classifier is implemented to filter the data frame
     frame=time_classifier(city, time_period)
@@ -544,7 +488,7 @@ def statistics():
 
 
     #Washington not included due to lack of data on users
-    if str (city["City"][0])!= "Washington":
+    if str (city) != "washington":
 
         #Outputs gender count on user for specified city and time frame
         gender(frame)
@@ -558,7 +502,7 @@ def statistics():
 
 
     #Restart?
-    restart = input('Would you like to restart? Type \'yes\' or \'no\'.')
+    restart = input('\n Would you like to restart? Type \'yes\' or \'no\'.')
     if restart.lower() == 'yes':
         statistics()
 
