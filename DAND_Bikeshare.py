@@ -1,5 +1,4 @@
 import pandas as pd
-import calendar
 
 #Loading in the csv files
 chicago= pd.read_csv("chicago.csv", parse_dates =["Start Time", "End Time"])
