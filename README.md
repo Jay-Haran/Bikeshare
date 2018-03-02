@@ -2,7 +2,7 @@
 
 ### Description
 
-The purpose of this project was to familiarise my self with Pandas.An interactive program which allows the user to view summary statistics for a specific city and time period they request. The 3 cities provided are Chicago, New York and Washington. The program can be run on terminal.
+An interactive program which allows the user to view summary statistics for a specific city and time period they request. The 3 cities provided are Chicago, New York and Washington. The program can be run on terminal.
 
 ### Packages Used 
 1. pandas
